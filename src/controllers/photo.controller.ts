@@ -1,12 +1,14 @@
 import { CreatePhotoDto } from "@/dto/createPhoto.dto";
+import { RequestWithUser } from "@/middlewares/authenticateToken.middleware";
 import { PhotoService } from "@/services/photo.service";
 import { plainToInstance } from "class-transformer";
 import { Request, Response } from "express";
 
 export const photoController = {
-  getPhotos: async (req: Request, res: Response) => {
+  getPhotos: async (req: RequestWithUser, res: Response) => {
     try {
       const photos = await PhotoService.getAllPhotos();
+      console.log(req.user);
 
       res.json(photos);
     } catch (error) {
@@ -16,7 +18,7 @@ export const photoController = {
     }
   },
 
-  getPhoto: async (req: Request, res: Response) => {
+  getPhoto: async (req: RequestWithUser, res: Response) => {
     try {
       const photo = await PhotoService.getPhotoById(req.params.id as string);
 

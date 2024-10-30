@@ -11,13 +11,13 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
   const token = bearer?.split(" ")[1];
 
   if (!token) {
-    res.status(401).json({ message: "Not authenticated" });
+    res.sendStatus(401);
     return;
   }
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!, (err, user) => {
     if (err) {
-      res.status(403).json({ message: "Forbidden" });
+      res.sendStatus(403);
       return;
     }
 

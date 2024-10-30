@@ -3,6 +3,7 @@ import cors from "cors";
 import router from "@/router";
 import morgan from "morgan";
 import { db } from "./db";
+import { errorHandler } from "./middlewares/errorHandler.middleware";
 
 db.initialize()
   .then(() => {
@@ -20,5 +21,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+app.use(errorHandler);
 
 export default app;

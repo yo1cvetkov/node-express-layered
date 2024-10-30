@@ -1,36 +1,43 @@
-import { CreateUserDto } from "@/dto/createUser.dto";
+import { BadRequestError } from "@/errors/BadRequestError";
+import { NotFoundError } from "@/errors/NotFoundError";
 import { UserService } from "@/services/user.service";
-import { User } from "@/types/User";
 import { generateAccessToken } from "@/utils/auth";
-import { plainToInstance } from "class-transformer";
-import { Request, Response } from "express";
+import { instanceToPlain } from "class-transformer";
+import { NextFunction, Request, Response } from "express";
 
-import jwt, { VerifyOptions } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 let refreshTokens: string[] = []; // bad in production use Redis instead
 
 export const authController = {
-  login: (req: Request, res: Response) => {
-    const username = req.body.username;
+  login: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const findUser = await UserService.findUser(req.body);
 
-    const user: User = {
-      username,
-    };
+      const accessToken = generateAccessToken(instanceToPlain(findUser));
 
-    const accessToken = generateAccessToken(user);
+      const refreshToken = jwt.sign(instanceToPlain(findUser), process.env.REFRESH_TOKEN_SECRET!);
 
-    const refreshToken = jwt.sign(user, process.env.REFRESH_TOKEN_SECRET!);
+      refreshTokens.push(refreshToken);
+      res.json({ accessToken, refreshToken });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        res.status(404).json({ message: error.message });
+        return;
+      }
 
-    refreshTokens.push(refreshToken);
+      if (error instanceof BadRequestError) {
+        res.status(400).json({ message: error.message });
+        return;
+      }
 
-    res.json({ accessToken, refreshToken });
+      next(error);
+    }
   },
 
   register: async (req: Request, res: Response) => {
-    const dto = plainToInstance(CreateUserDto, req.body);
-
     try {
-      const newUser = await UserService.createUser(dto);
+      const newUser = await UserService.createUser(req.body);
 
       res.status(201).json(newUser);
     } catch (error) {
@@ -58,7 +65,7 @@ export const authController = {
         res.sendStatus(403);
       }
 
-      const accessToken = generateAccessToken({ username: user.username });
+      const accessToken = generateAccessToken(user);
 
       res.json({ accessToken });
     });

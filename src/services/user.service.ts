@@ -3,10 +3,14 @@ import { User } from "@/entities/user.entity";
 import { UserRepository } from "@/repositories/user.repository";
 import { validate } from "class-validator";
 import bcrypt from "bcrypt";
+import { LoginUserDto } from "@/dto/loginUser.dto";
+import { NotFoundError } from "@/errors/NotFoundError";
+import { BadRequestError } from "@/errors/BadRequestError";
 
 interface UserService {
   getAllUsers: () => Promise<Partial<User>[]>;
   createUser: (payload: CreateUserDto) => Promise<User>;
+  findUser: (payload: LoginUserDto) => Promise<User>;
 }
 
 export const UserService: UserService = {
@@ -20,23 +24,35 @@ export const UserService: UserService = {
     });
   },
 
+  findUser: async (payload: LoginUserDto) => {
+    const findUser = await UserRepository.findOne({
+      where: {
+        username: payload.username,
+      },
+    });
+
+    if (!findUser) {
+      throw new NotFoundError("User with given username doesn't exist.");
+    }
+
+    if (await bcrypt.compare(payload.password as string, findUser.password as string)) {
+      const { password, ...userData } = findUser;
+
+      return userData;
+    } else {
+      throw new BadRequestError("Password is not correct");
+    }
+  },
+
   createUser: async (payload: CreateUserDto) => {
-    const newUser = new User();
-    newUser.firstName = payload.firstName;
-    newUser.lastName = payload.lastName;
-    newUser.username = payload.username;
-    newUser.password = payload.password;
-
     try {
-      const errors = await validate(newUser);
+      const hashedPassword = await bcrypt.hash(payload.password as string, 10);
 
-      if (errors.length > 0) {
-        const messages = errors.map((error) => Object.values(error.constraints || {}).join("\n"));
-        throw new Error(messages.toString());
-      }
+      const newUser = new User();
 
-      const hashedPassword = await bcrypt.hash(newUser.password as string, 10);
-
+      newUser.firstName = payload.firstName;
+      newUser.lastName = payload.lastName;
+      newUser.username = payload.username;
       newUser.password = hashedPassword;
 
       return await UserRepository.save(newUser);
