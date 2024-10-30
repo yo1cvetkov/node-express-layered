@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import router from "@/router";
 import morgan from "morgan";
-import { db } from "./data-source";
+import { db } from "./db";
 
 db.initialize()
   .then(() => {
