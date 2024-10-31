@@ -1,11 +1,10 @@
-import { CreateUserDto } from "@/dto/createUser.dto";
-import { User } from "@/entities/user.entity";
-import { UserRepository } from "@/repositories/user.repository";
-import { validate } from "class-validator";
-import bcrypt from "bcrypt";
-import { LoginUserDto } from "@/dto/loginUser.dto";
-import { NotFoundError } from "@/errors/NotFoundError";
-import { BadRequestError } from "@/errors/BadRequestError";
+import { CreateUserDto } from '@/dto/createUser.dto';
+import { User } from '@/entities/user.entity';
+import { UserRepository } from '@/repositories/user.repository';
+import bcrypt from 'bcrypt';
+import { LoginUserDto } from '@/dto/loginUser.dto';
+import { NotFoundError } from '@/errors/NotFoundError';
+import { BadRequestError } from '@/errors/BadRequestError';
 
 interface UserService {
   getAllUsers: () => Promise<Partial<User>[]>;
@@ -35,12 +34,17 @@ export const UserService: UserService = {
       throw new NotFoundError("User with given username doesn't exist.");
     }
 
-    if (await bcrypt.compare(payload.password as string, findUser.password as string)) {
+    if (
+      await bcrypt.compare(
+        payload.password as string,
+        findUser.password as string
+      )
+    ) {
       const { password, ...userData } = findUser;
 
       return userData;
     } else {
-      throw new BadRequestError("Password is not correct");
+      throw new BadRequestError('Password is not correct');
     }
   },
 
@@ -60,7 +64,7 @@ export const UserService: UserService = {
       if (error instanceof Error) {
         throw new Error(error.message);
       } else {
-        throw new Error("Oops");
+        throw new Error('Oops');
       }
     }
   },
