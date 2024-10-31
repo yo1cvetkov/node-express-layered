@@ -1,13 +1,17 @@
-import { BadRequestError } from "@/errors/BadRequestError";
-import { NotFoundError } from "@/errors/NotFoundError";
-import { UserService } from "@/services/user.service";
-import { generateAccessToken } from "@/utils/auth";
-import { instanceToPlain } from "class-transformer";
-import { NextFunction, Request, Response } from "express";
+import { User } from '@/entities/user.entity';
+import { BadRequestError } from '@/errors/BadRequestError';
+import { NotFoundError } from '@/errors/NotFoundError';
+import { RequestWithUser } from '@/middlewares/authenticateToken.middleware';
+import { UserService } from '@/services/user.service';
+import {
+  generateAccessToken,
+  generateAndStoreRefreshToken,
+} from '@/utils/auth';
+import redisClient from '@/utils/redisConfig';
+import { instanceToPlain } from 'class-transformer';
+import { NextFunction, Request, Response } from 'express';
 
-import jwt from "jsonwebtoken";
-
-let refreshTokens: string[] = []; // bad in production use Redis instead
+import jwt from 'jsonwebtoken';
 
 export const authController = {
   login: async (req: Request, res: Response, next: NextFunction) => {
@@ -16,9 +20,9 @@ export const authController = {
 
       const accessToken = generateAccessToken(instanceToPlain(findUser));
 
-      const refreshToken = jwt.sign(instanceToPlain(findUser), process.env.REFRESH_TOKEN_SECRET!);
-
-      refreshTokens.push(refreshToken);
+      const refreshToken = await generateAndStoreRefreshToken(
+        instanceToPlain(findUser)
+      );
       res.json({ accessToken, refreshToken });
     } catch (error) {
       if (error instanceof NotFoundError) {
@@ -47,7 +51,7 @@ export const authController = {
     }
   },
 
-  token: (req: Request, res: Response) => {
+  token: async (req: Request, res: Response) => {
     const refreshToken = req.body.token;
 
     if (!refreshToken) {
@@ -55,24 +59,31 @@ export const authController = {
       return;
     }
 
-    if (!refreshTokens.includes(refreshToken)) {
-      res.status(403);
-      return;
-    }
+    try {
+      const payload = jwt.verify(
+        refreshToken,
+        process.env.REFRESH_TOKEN_SECRET!
+      ) as User;
 
-    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET!, (err: any, user: any) => {
-      if (err) {
-        res.sendStatus(403);
+      const storedToken = await redisClient.get(`refreshToken:${payload.id}`);
+
+      if (storedToken !== refreshToken) {
+        res.status(403).json({ message: 'Invalid or expired refresh token' });
+        return;
       }
 
-      const accessToken = generateAccessToken(user);
+      const accessToken = generateAccessToken(payload);
 
-      res.json({ accessToken });
-    });
+      res.status(200).json({ accessToken });
+    } catch (error) {
+      res.status(403).json({ message: 'Invalid refresh token' });
+    }
   },
 
-  logout: (req: Request, res: Response) => {
-    refreshTokens = refreshTokens.filter((token) => token !== req.body.token);
+  logout: async (req: RequestWithUser, res: Response) => {
+    const user = req.user as User;
+
+    await redisClient.del(`refreshToken: ${user.id}`);
 
     res.sendStatus(204);
   },
